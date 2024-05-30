@@ -1,10 +1,11 @@
 # Description: Script to practice running Hector and plotting in R
-# By: Peter Scully (questions from Kalyn Dorheim)
+# By: Peter Scully (questions/initial code from Kalyn Dorheim)
 # Date: 5/29-5/30/24
 # 0. Set Up --------------------------------------------------------------------
 # Call packages here & set directories if needed.
 library(hector)
 library(ggplot2)
+library(dplyr)
 
 
 # 1. Run SSP119 ----------------------------------------------------------------
@@ -66,6 +67,8 @@ for (curr_var in hector_vars) {
     geom_line(data = filter(all_ssp_out, variable == curr_var)) +
     labs(y = paste(curr_var, curr_units), 
          title = paste(curr_var, "from 1850-2100"))
+  
+  # Saving the plot
   ggsave(paste(curr_var, "time.png", sep = "_"), curr_plot)
 }
 
