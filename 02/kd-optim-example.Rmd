@@ -1,0 +1,90 @@
+---
+title: "Optim Example"
+output: html_document
+date: "2024-05-29"
+---
+
+```{r}
+library(ggplot2)
+library(kableExtra)
+```
+
+
+Here we will walk through an example using `optim` by using it to minimize the MSE (mean squared error) for a linear function, which in all honesty is over fit there are better functions there much better built in function that do this (aka `lm` which is used to fit linear models) but it is probably the simplest demo that comes to mind. 
+
+
+
+First we create the data set we will use for this example: 
+
+```{r}
+# Set a random seed for reproducibility
+set.seed(123)
+
+# Create random data
+x <- rnorm(500)
+y <- rnorm(500) + 0.7 * x
+
+# Combine x and y into a data frame
+data <- data.frame(x, y)
+```
+
+```{r}
+ggplot(data = data) + 
+  geom_point(aes(y, y))
+```
+
+```{r}
+# Manually create a function for residual sum of squares
+# Args 
+#   data: data.frame containing a x and y column 
+#   par: numeric vector of two parameters 
+# Rerun: numeric vector length 1 the MSE between predicted y and the observed y   
+objective_function <- function(data, par) {
+  
+  predicted_y <- par[1] + par[2] * data$x
+  SE <- (predicted_y - data$y)^2
+  MSE <- mean(SE)
+  return(MSE)
+  
+}
+```
+
+
+Use the `optim` function to estimate values of our two parameters. 
+```{r}
+# Applying optim
+optim_output <- optim(par = c(0, 1),
+                      fn = objective_function,
+                      data = data)
+
+```
+
+
+Question for Peter what happens when you play aroud with the values of par? If you set par = (10, 10)? Try palying around with different values
+
+
+```{r}
+optim_output
+```
+
+
+Now estimate the parameters using `lm`
+
+```{r}
+fit <- lm(data = data, formula = y ~ x)
+```
+
+```{r}
+fit
+```
+
+
+Questions for Peter 
+
+* What is returned by optim? What kind of object is it? What do the different elements refer to? What about the lm function? 
+* How different were the parameter estimates? Can compare in a nice table (use`kable`)?
+* How do the predicted results using the different par estimates compare with one another? 
+* Evaluate parameter fit performance (compare predicted values of y with the original values using MSE)
+
+
+
