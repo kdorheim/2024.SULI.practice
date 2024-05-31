@@ -1,11 +1,14 @@
 # Description: Script to practice running Hector and plotting in R
-# By: Peter Scully (questions/initial code from Kalyn Dorheim)
+# By: Peter Scully
 # Date: 5/29-5/30/24
 # 0. Set Up --------------------------------------------------------------------
 # Call packages here & set directories if needed.
 library(hector)
 library(ggplot2)
 library(dplyr)
+library(here)
+
+BASE_DIR <- here::here()
 
 
 # 1. Run SSP119 ----------------------------------------------------------------
@@ -18,6 +21,7 @@ ini <- system.file(package = "hector", "input/hector_ssp119.ini")
 core <- newcore(ini, name = "ssp119")
 run(core)
 ssp119_out <- fetchvars(core, dates = yrs, vars = hector_vars)
+core <- shutdown(core)
 
 
 # 2. Run SSP245 ----------------------------------------------------------------
@@ -28,7 +32,7 @@ ini <- system.file(package = "hector", "input/hector_ssp245.ini")
 core <- newcore(ini, name = "ssp245")
 run(core)
 ssp245_out <- fetchvars(core, dates = yrs, vars = hector_vars)
-
+core <- shutdown(core)
 
 # 3. Run SSP585 ----------------------------------------------------------------
 # Get results for 1850 to 2100 for global mean air temperature and [CO2]
@@ -37,6 +41,7 @@ ini <- system.file(package = "hector", "input/hector_ssp585.ini")
 core <- newcore(ini, name = "ssp585")
 run(core)
 ssp585_out <- fetchvars(core, dates = yrs, vars = hector_vars)
+core <- shutdown(core)
 
 # 4. Plots ---------------------------------------------------------------------
 #  R skills used here - concatenating data, sets together, subsetting/filtering data,
@@ -69,7 +74,7 @@ for (curr_var in hector_vars) {
          title = paste(curr_var, "from 1850-2100"))
   
   # Saving the plot
-  ggsave(paste(curr_var, "time.png", sep = "_"), curr_plot)
+  ggsave(file.path(BASE_DIR, paste(curr_var, "time.png", sep = "_")), curr_plot)
 }
 
 
@@ -80,7 +85,7 @@ plot_B <- base +
   geom_line() + 
   facet_wrap(~ variable, scales = "free") +
   ggtitle("Overall Results")
-ggsave("combined_plot.png")
+ggsave(file.path(BASE_DIR, "combined_plot.png"))
 
 # C) Plot comparing the two different temperatures with one another
 
@@ -92,7 +97,7 @@ plot_C <- base +
                           variable == GLOBAL_TAS() | variable == GMST()),
             aes(linetype = variable)) +
   labs(y = "Temperature (\u00B0C)", title = "Temperature Comparison")
-ggsave("T_comparison.png")
+ggsave(file.path(BASE_DIR, "T_comparison.png"))
 
 
 
