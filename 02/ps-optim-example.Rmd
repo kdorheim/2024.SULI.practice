@@ -4,9 +4,10 @@ output: html_document
 date: "2024-05-29"
 ---
 
-```{r}
+```{r warning = FALSE, message = FALSE}
 library(ggplot2)
 library(kableExtra)
+library(dplyr)
 ```
 
 
@@ -102,7 +103,7 @@ class(optim_output)
 optim returns a list containing the following elements (according to the R documentation):
 
 - par: the optimal set of parameters that were found
-- value: the value of the objective function when passed these optimal parameters
+- value: the value of the objective function when passed these optimal parameters. In this case, the objective function calculates the mean squared error between predicted and actual data.
 - counts: the number of times the objective function and gradient needed to be calculated for a new set of possible parameters. (in this case, optim didn't use any gradients to optimize)
 - convergence: an integer code either saying that the optimization was successful (zero) or that an error was encountered (nonzero values)
 - message: any additional messages relevant to the optimization
@@ -180,5 +181,30 @@ all_pars %>%
 
 ```
 
-Despite the slightly different parameter values, all of the parameter combinations produce the same MSE, suggesting that they all exhibit very similar performance.
+Despite the slightly different parameter values, all of the parameter combinations produce the same MSE, suggesting that they all exhibit very similar performance. We can verify this by graphing our fits, which will also help with visually comparing the fits to the data they're trying to predict.
 
+```{r}
+# To plot this data, we'll need to make a new data frame
+
+# First, let's get all y_pred values for our first optim fit and our lm fit
+optim_fit <- data.frame(data$x, 
+                        all_pars[1,]$par1 + all_pars[1,]$par2 * data$x,
+                        "optim fit")
+colnames(optim_fit) <- c("x", "y_pred", "fit")
+
+lm_fit <- data.frame(data$x, 
+                     all_pars[4,]$par1 + all_pars[4,]$par2 * data$x,
+                     "lm fit")
+colnames(lm_fit) <- c("x", "y_pred", "fit")
+
+# Now let's combine these dataframes and plot our observed and predicted data
+fits <- rbind(optim_fit, lm_fit)
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y)) +
+  geom_line(data = fits, aes(x = x, y = y_pred, color = fit))
+
+```
+
+Note that the lm and optim fits have such similar parameters that they overlap
+on this plot. Additionally, although the data is quite dispersed, the two fits
+do seem to accurately reflect the general trend in the data.
