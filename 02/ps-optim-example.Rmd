@@ -201,7 +201,7 @@ colnames(lm_fit) <- c("x", "y_pred", "fit")
 fits <- rbind(optim_fit, lm_fit)
 ggplot() +
   geom_point(data = data, aes(x = x, y = y)) +
-  geom_line(data = fits, aes(x = x, y = y_pred, color = fit))
+  geom_line(data = fits, aes(x = x, y = y_pred, color = fit, linetype = fit))
 
 ```
 
