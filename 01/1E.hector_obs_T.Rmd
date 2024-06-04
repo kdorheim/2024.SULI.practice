@@ -60,7 +60,8 @@ We can start by creating a function to get the average temperature over a given 
 # args:
 #   data - data frame outputted by fetchvars
 #   var - string containing the Hector variable to average
-#   interval - vector of years over which to find the average
+#   lower - start of time interval to average across
+#   upper - end of time interval to average across
 #
 # returns - average value of var over the provided interval
 #######################
