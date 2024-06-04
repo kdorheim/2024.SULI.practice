@@ -60,8 +60,8 @@ hector_data <- subset(hector_data, select = c('year', 'value'))
 hector_data$unc <- 0
 
 # Now, let's make the column names match so we can combine the data frames
-colnames(hist_data) <- c('year', 'CO2_concentration', 'unc')
-colnames(hector_data) <- c('year', 'CO2_concentration', 'unc')
+colnames(hist_data) <- c('year', 'CO2_concentration', 'fake fake ')
+colnames(hector_data) <- c('year', 'CO2_concentration', 'chaos')
 
 # Finally, let's add a column to distinguish which data comes from which source
 hist_data$data_source <- "Historical Record"
