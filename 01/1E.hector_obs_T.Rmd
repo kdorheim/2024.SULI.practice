@@ -1,0 +1,71 @@
+---
+title: "Hector v. Observed Temperatures"
+author: "Peter Scully"
+date: "2024-06-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting Data
+
+To start, let's import the relevant libraries:
+
+```{r imports}
+library(hector)
+library(ggplot2)
+```
+
+We now need to import the historical data into a data frame
+```{r cars}
+obs_data <- 
+  read.csv(file.path(here::here(), "01", 
+                     "HadCRUT.5.0.2.0.analysis.summary_series.global.annual.csv"))
+colnames(obs_data) <- c("year", "temperature", "lower", "upper")
+
+obs_data
+```
+
+We also need to run Hector:
+```{r}
+# Setting the desired date range and variables
+yrs <- 1850:2024               # Date range of observational record
+hector_vars <- GLOBAL_TAS()    # Observed temperatures are near-surface
+
+# Running the default ssp245 run
+ini_file <- system.file("input/hector_ssp245.ini", package = "hector")
+core <- newcore(ini_file)
+run(core)
+hector_data <- fetchvars(core, yrs, vars = hector_vars)
+shutdown(core)
+
+hector_data
+```
+
+## Converting Data
+
+Right now, the Hector data contains temperature anomalies relative to 1750 but
+the observational data contains temperature anomalies relative to 1961-1990. To
+resolve this, let's write some functions to convert Hector's temperatures:
+
+```{r}
+#######################
+# get_interval_avg - function to find the average value of a Hector variable over
+#                    a given time interval
+# args:
+#   data - data frame outputted by fetchvars
+#   var - string containing the Hector variable to average
+#   interval - vector of years over which to find the average
+#
+# returns - average value of var over the provided interval
+#######################
+get_interval_avg <- function(data, var, interval) {
+  # TODO: start from here
+}
+
+get_interval
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
