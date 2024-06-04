@@ -13,9 +13,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 To start, let's import the relevant libraries:
 
-```{r imports}
+```{r imports, message=FALSE, warning=FALSE}
 library(hector)
 library(ggplot2)
+library(dplyr)
 ```
 
 We now need to import the historical data into a data frame
@@ -48,7 +49,9 @@ hector_data
 
 Right now, the Hector data contains temperature anomalies relative to 1750 but
 the observational data contains temperature anomalies relative to 1961-1990. To
-resolve this, let's write some functions to convert Hector's temperatures:
+resolve this, let's write some functions to convert Hector's temperatures.
+
+We can start by creating a function to get the average temperature over a given interval
 
 ```{r}
 #######################
@@ -61,11 +64,95 @@ resolve this, let's write some functions to convert Hector's temperatures:
 #
 # returns - average value of var over the provided interval
 #######################
-get_interval_avg <- function(data, var, interval) {
-  # TODO: start from here
+get_interval_avg <- function(data, var, lower, upper) {
+  data %>%
+    subset(variable == var) %>%
+    subset(lower <= year & year <= upper) %>%
+    .$value -> interval_vals
+  return(mean(interval_vals))
 }
 
-get_interval
+hector_avg_T = get_interval_avg(hector_data, 
+                                var = GLOBAL_TAS(), 
+                                lower = 1961, 
+                                upper = 1990)
+
+hector_avg_T
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Next, we need a function to use this average to adjust Hector's temperature
+values. We'll add these values to a new data frame containing the Hector
+data we'll use for our comparison
+
+```{r}
+#######################
+# new_rel_val - function to adjust values of a Hector variable to be relative
+#               to a new value
+# args:
+#   data - data frame outputted by fetchvars
+#   var - string containing the Hector variable to adjust
+#   benchmark - value to make variable relative to 
+#
+# returns - vector containing new values for var
+#######################
+new_rel_val <- function(data, var, benchmark) {
+  data %>%
+    subset(variable == var) %>%
+    .$value - benchmark -> new_vals
+  return(new_vals)
+}
+
+hector_adjusted <- data.frame(hector_data$year, 
+                              new_rel_val(data = hector_data,
+                                          var = GLOBAL_TAS(),
+                                          benchmark = hector_avg_T))
+
+# Making this data frame line up with obs_data
+colnames(hector_adjusted) <- c("year", "temperature")
+hector_adjusted$lower <- 0
+hector_adjusted$upper <- 0
+
+hector_adjusted
+
+```
+
+
+## Comparing Results
+From here, we can now try to find the RMSE between the two temperature series.
+To help with this, we can use another function:
+```{r}
+#######################
+# rmse - function to find the root mean squared error between vectors of
+#        predicted and observed values
+#
+# args:
+#   x - vector of predicted values
+#   y - vector of observed values (same length as x)
+#
+# returns - RMSE of x and y
+#######################
+rmse <- function(x, y) {
+  SE = (x - y)^2
+  MSE = mean(SE)
+  return(sqrt(MSE))
+}
+
+rmse(hector_adjusted$temperature, obs_data$temperature)
+```
+
+Let's see how this value lines up with a plot comparing temperature predictions:
+```{r}
+# First we need to combine the data frames
+hector_adjusted$source <- "Hector"
+obs_data$source <- "Observations (HadCRUT.5.0.2.0)"
+combined_data <- rbind(hector_adjusted, obs_data)
+
+# Now we can make our plot:
+ggplot(data = combined_data, aes(x = year, y = temperature, color = source)) +
+  geom_ribbon(data = filter(combined_data, 
+                            source == "Observations (HadCRUT.5.0.2.0)"),
+              aes(ymin = lower, ymax = upper), 
+              fill = 'aquamarine1', color = NA) +
+  geom_line() +
+  ggtitle("Comparing Results")
+```
