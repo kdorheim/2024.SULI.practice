@@ -1,0 +1,210 @@
+---
+title: "Optim Example"
+output: html_document
+date: "2024-05-29"
+---
+
+```{r warning = FALSE, message = FALSE}
+library(ggplot2)
+library(kableExtra)
+library(dplyr)
+```
+
+
+Here we will walk through an example using `optim` by using it to minimize the MSE (mean squared error) for a linear function, which in all honesty is over fit there are better functions there much better built in function that do this (aka `lm` which is used to fit linear models) but it is probably the simplest demo that comes to mind. 
+
+
+
+First we create the data set we will use for this example: 
+
+```{r}
+# Set a random seed for reproducibility
+set.seed(123)
+
+# Create random data
+x <- rnorm(500)
+y <- rnorm(500) + 0.7 * x
+
+# Combine x and y into a data frame
+data <- data.frame(x, y)
+```
+
+```{r}
+ggplot(data = data) + 
+  geom_point(aes(y, y))
+```
+
+```{r}
+# Manually create a function for residual sum of squares
+# Args 
+#   data: data.frame containing a x and y column 
+#   par: numeric vector of two parameters 
+# Rerun: numeric vector length 1 the MSE between predicted y and the observed y   
+objective_function <- function(data, par) {
+  
+  predicted_y <- par[1] + par[2] * data$x
+  SE <- (predicted_y - data$y)^2
+  MSE <- mean(SE)
+  return(MSE)
+  
+}
+```
+
+
+Use the `optim` function to estimate values of our two parameters. 
+```{r}
+# Applying optim
+optim_output <- optim(par = c(0, 1),
+                      fn = objective_function,
+                      data = data)
+
+```
+
+
+Question for Peter what happens when you play around with the values of par? If you set par = (10, 10)? Try playing around with different values
+
+
+```{r}
+optim_output
+```
+
+```{r}
+alt_output <- optim(par = c(10, 10), fn = objective_function, data = data)
+alt_output
+```
+
+```{r}
+alt_output_2 <- optim(par = c(0, -10), fn = objective_function, data = data)
+alt_output_2
+```
+
+Different values of par produce very slightly different final estimates for the parameters. hese values also produce different function counts.
+
+Now estimate the parameters using `lm`
+
+```{r}
+fit <- lm(data = data, formula = y ~ x)
+```
+
+```{r}
+fit
+```
+
+
+Questions for Peter 
+
+* What is returned by optim? What kind of object is it? What do the different elements refer to? What about the lm function? 
+
+`optim`:
+```{r}
+class(optim_output)
+```
+
+optim returns a list containing the following elements (according to the R documentation):
+
+- par: the optimal set of parameters that were found
+- value: the value of the objective function when passed these optimal parameters. In this case, the objective function calculates the mean squared error between predicted and actual data.
+- counts: the number of times the objective function and gradient needed to be calculated for a new set of possible parameters. (in this case, optim didn't use any gradients to optimize)
+- convergence: an integer code either saying that the optimization was successful (zero) or that an error was encountered (nonzero values)
+- message: any additional messages relevant to the optimization
+
+`lm`:
+```{r}
+class(fit)
+```
+
+lm returns an "lm" object that encodes the arguments passed to lm and the optimal coefficients that it found.
+
+* How different were the parameter estimates? Can compare in a nice table (use`kable`)?
+```{r}
+
+# Removing the names from the coefficient lists for fit
+coeffs <- fit$coefficients
+names(coeffs) <- NULL
+
+# Making the dataframe to be converted into a table
+method_names <- c("optim, par = (0, 1)",
+                  "optim, par = (10, 10)",
+                  "optim, par = (0, -10)",
+                  "lm")
+par1 <- c(unlist(optim_output, use.names = FALSE)[1], 
+          unlist(alt_output, use.names = FALSE)[1],
+          unlist(alt_output_2, use.names = FALSE)[1],
+          coeffs[1])
+par2 <- c(unlist(optim_output, use.names = FALSE)[2], 
+          unlist(alt_output, use.names = FALSE)[2],
+          unlist(alt_output_2, use.names = FALSE)[2],
+          coeffs[2])
+
+all_pars <- data.frame(method_names, par1, par2)
+
+# Producing the table with kable
+all_pars %>%
+  kbl() %>%
+  kable_styling()
+
+```
+The estimated parameter values were all quite similar, although there is considerably more variability (at least in order of magnitude) for the first parameter (the intercept).
+
+* How do the predicted results using the different par estimates compare with one another?
+
+Let's add a couple columns testing different predictions for different x-values from these different estimates:
+
+```{r}
+predicted_data <- all_pars
+predicted_data$x_neg100 <- all_pars$par1 + all_pars$par2 * (-100)
+predicted_data$x_neg50 <- all_pars$par1 + all_pars$par2 * (-50)
+predicted_data$x_0 <- all_pars$par1
+predicted_data$x_50 <- all_pars$par1 + all_pars$par2 * (50)
+predicted_data$x_100 <- all_pars$par1 + all_pars$par2 * (100)
+
+# Producing the table with kable
+predicted_data %>%
+  kbl() %>%
+  kable_styling()
+
+```
+
+These estimates are all quite similar, although the par = (10, 10) pars predict values that are noticeably off from the other parameter combinations.
+
+* Evaluate parameter fit performance (compare predicted values of y with the original values using MSE)
+
+```{r}
+
+# Calculating MSE
+all_pars$MSE <- objective_function(data, c(all_pars$par1, all_pars$par2))
+
+# Producing the table with kable
+all_pars %>%
+  kbl() %>%
+  kable_styling()
+
+```
+
+Despite the slightly different parameter values, all of the parameter combinations produce the same MSE, suggesting that they all exhibit very similar performance. We can verify this by graphing our fits, which will also help with visually comparing the fits to the data they're trying to predict.
+
+```{r}
+# To plot this data, we'll need to make a new data frame
+
+# First, let's get all y_pred values for our first optim fit and our lm fit
+optim_fit <- data.frame(data$x, 
+                        all_pars[1,]$par1 + all_pars[1,]$par2 * data$x,
+                        "optim fit")
+colnames(optim_fit) <- c("x", "y_pred", "fit")
+
+lm_fit <- data.frame(data$x, 
+                     all_pars[4,]$par1 + all_pars[4,]$par2 * data$x,
+                     "lm fit")
+colnames(lm_fit) <- c("x", "y_pred", "fit")
+
+# Now let's combine these dataframes and plot our observed and predicted data
+fits <- rbind(optim_fit, lm_fit)
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y)) +
+  geom_line(data = fits, aes(x = x, y = y_pred, color = fit, linetype = fit))
+
+```
+
+Note that the lm and optim fits have such similar parameters that they overlap
+on this plot. Additionally, although the data is quite dispersed, the two fits
+do seem to accurately reflect the general trend in the data.
