@@ -1,0 +1,141 @@
+---
+title: "Running Hector with Constraints"
+output: html_document
+date: "2024-06-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+To begin, we'll need to import some libraries and set some initial variables:
+```{r imports_consts, warning=FALSE, message=FALSE}
+library(hector)
+library(ggplot2)
+library(dplyr)
+
+hector_vars <- c(GMST(), CONCENTRATIONS_CO2())
+yrs <- 1745:2300
+```
+
+## Default Run
+
+First, let's run the default emission-driven ssp245 run:
+
+```{r default}
+ini_file <- system.file("input/hector_ssp245.ini", package = "hector")
+core <- newcore(ini_file)
+run(core)
+initial_data <- fetchvars(core, yrs, vars = hector_vars)
+```
+
+## Setting Constraints via the R Interface
+
+First, let's read in the CO2 constraint data
+```{r reading_co2}
+constr_df <- read.csv(system.file("input/tables/ssp245_emiss-constraints_rf.csv",
+                                  package = "hector"),
+                      skip = 5)
+CO2_constr <- constr_df$CO2_constr
+CO2_constr
+```
+
+Now, let's run Hector constrained by this CO2 data
+```{r interface}
+# Adding in the constraint
+setvar(core, 
+       dates = yrs, 
+       var = CO2_CONSTRAIN(), 
+       values = CO2_constr,
+       unit = getunits(CO2_CONSTRAIN()))
+reset(core)
+
+# Running Hector with the constraint
+run(core)
+constr_data_interface <- fetchvars(core, yrs, vars = hector_vars)
+
+constr_data_interface
+```
+
+
+## Setting Constraints via the .ini file
+After editing the .ini file to run Hector with CO2 constraints, we can now run
+Hector using the modified ini file
+```{r ini}
+# Creating the new core
+constr_ini_file <- file.path(here::here(), 
+                             '01', 
+                             'hector_inputs', 
+                             'hector_inputs',
+                             'hector_ssp245.ini')
+constr_core <- newcore(constr_ini_file)
+
+# Running the new core
+run(constr_core)
+constr_data_ini <- fetchvars(constr_core, yrs, vars = hector_vars)
+constr_core <- shutdown(constr_core)
+
+constr_data_ini
+```
+
+
+## Comparing Results
+
+Now that we've completed all 3 runs, we can compare their results. To do this,
+we first need to combine their data frames:
+```{r combine_dfs}
+# Updating scenario names in data frames
+initial_data$scenario <- "emission driven run"
+constr_data_interface$scenario <- "constrained via R interface"
+constr_data_ini$scenario <- "constrained via .ini file"
+
+# Combining data frames
+combined_data <- rbind(initial_data, constr_data_interface, constr_data_ini)
+```
+
+Now, let's make our final plot:
+```{r plotting}
+ggplot() + 
+  geom_line(data = combined_data, 
+            aes(x = year, y = value, color = scenario, linetype =  scenario)) +
+  facet_wrap(~ variable, scales = "free") +
+  ggtitle("Constrained and Unconstrained Hector Runs")
+  
+```
+
+As expected, the two methods of constraining the data produce the same results
+
+## Bonus: Changing Beta and Q10
+
+Let's see what happens when we change beta and Q10 (using the core constrained via the R interface):
+```{r beta_q10, results='hide',fig.keep='all'}
+# Changing beta
+setvar(core, dates = NA, var = BETA(), values = 0.72, unit = getunits(BETA()))
+reset(core)
+run(core)
+new_beta_data <- fetchvars(core, yrs, vars = hector_vars)
+new_beta_data$scenario <- "constrained, beta = 0.72"
+
+# Changing Q10
+setvar(core, dates = NA, var = Q10_RH(), values = 4.0, unit = getunits(Q10_RH()))
+reset(core)
+run(core)
+new_q10_data <- fetchvars(core, yrs, vars = hector_vars)
+new_q10_data$scenario <- "constrained, Q10 = 4.0"
+
+shutdown(core)
+
+# Combining data frames
+bonus_data <- rbind(constr_data_interface, new_beta_data, new_q10_data)
+
+# Making plot
+ggplot() + 
+  geom_line(data = bonus_data, 
+            aes(x = year, y = value, color = scenario, linetype =  scenario)) +
+  facet_wrap(~ variable, scales = "free") +
+  ggtitle("Constrained Hector Runs with Different Beta and Q10")
+
+```
+
+These plots indicate that changing beta and Q10 did not affect the results of the constrained runs. This makes sense because, during a constrained run, Hector overwrites CO2 data from the carbon cycle with the prescribed data, making any carbon cycle parameters irrelevant.
