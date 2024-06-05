@@ -1,0 +1,121 @@
+---
+title: "Hector [CO2] vs. Observations"
+output: html_document
+author: "Peter Scully"
+date: "2024-05-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting the data
+
+First, let's import the relevant libraries and setup our directory location
+```{r import_and_loc, warning = FALSE, message = FALSE}
+library(hector)
+library(ggplot2)
+library(dplyr)
+
+INPUT_DIR <- file.path(here::here(), '01')
+```
+
+Now, let's read the historical data into a dataframe
+
+```{r hist_table}
+hist_data <- read.table(file.path(INPUT_DIR, 'co2_annmean_mlo.txt'), 
+                        skip = 43, 
+                        col.names = c("year", "mean", "unc"))
+hist_data
+```
+
+We also need to get the default Hector data:
+
+```{r hector_run}
+# Setting the desired date range and variables
+yrs <- 1959:2023
+hector_vars <- CONCENTRATIONS_CO2()
+
+# Running the default ssp245 run
+ini_file <- system.file("input/hector_ssp245.ini", package = "hector")
+core <- newcore(ini_file)
+run(core)
+hector_data <- fetchvars(core, yrs, vars = hector_vars)
+
+hector_data
+
+```
+
+## Making the comparison plot
+
+Now that we have both the historical and model data, we need to combine the
+data frames so we can make a comparison plot:
+```{r combining data frames}
+
+# First, let's delete the unnecessary columns
+hist_data <- subset(hist_data, select = c('year', 'mean', 'unc'))
+hector_data <- subset(hector_data, select = c('year', 'value'))
+
+# We also need to add a column with uncertainties to the Hector data frame
+hector_data$unc <- 0
+
+# Now, let's make the column names match so we can combine the data frames
+colnames(hist_data) <- c('year', 'CO2_concentration', 'unc')
+colnames(hector_data) <- c('year', 'CO2_concentration', 'unc')
+
+# Finally, let's add a column to distinguish which data comes from which source
+hist_data$data_source <- "Historical Record"
+hector_data$data_source <- "Hector"
+
+# Combining the data frames
+combined_data <- rbind(hist_data, hector_data)
+
+```
+
+With this new data frame, we can now make the actual comparison plot
+
+```{r plotting}
+# Note: The uncertainty portrayed by geom_ribbon for the historical record
+#       doesn't really show up because it's so small
+plot <- ggplot(data = combined_data, 
+               aes(x = year, y = CO2_concentration, color = data_source)) +
+  geom_ribbon(data = filter(combined_data, data_source == "Historical Record"),
+              aes(ymin = CO2_concentration - unc, 
+                  ymax = CO2_concentration + unc),
+              fill = 'blue') +
+  geom_line() 
+  ggtitle("Comparing Results")
+plot
+```
+
+
+## Calculating mean squared error
+
+Now we just need to calculate mean squared error. We'll start by just creating
+a generic function to calculate MSE:
+```{r mse_fxn}
+##############################
+# mse: Function to calculate the mean squared error from two vectors of data
+# 
+# Arguments:
+#   x: vector of predicted data
+#   y: vector of observed data
+#
+# Returns: The mean squared error of the two vectors
+# 
+# Expectations: x and y are the same length
+##############################
+mse <- function(x, y) {
+  squared_error = (x - y) ^ 2
+  return(sum(squared_error) / length(squared_error))
+}
+```
+
+With this function, we can calculate the MSE between real observations and the
+results from Hector:
+```{r final_mse}
+final_mse = mse(hector_data$CO2_concentration, hist_data$CO2_concentration)
+```
+
+Thus, the MSE between the model results and historical observations is 
+`r final_mse`.
