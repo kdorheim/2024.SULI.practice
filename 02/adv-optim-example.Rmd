@@ -63,7 +63,7 @@ best_pars <- optim_output$par
 
 Based on optim's output, it seems that the best fit for the model is: $y = `r round(best_pars[1], 3)` + `r round(best_pars[2], 3)`x + `r round(best_pars[3], 3)`x^2$. 
 
-## Plotting Results
+## Evaluating the Fit
 
 Let's see how this fit looks when plotted
 ```{r plotting}
@@ -82,4 +82,34 @@ ggplot() +
 
 ```
 
-This fit looks quite reasonable!
+This fit looks quite reasonable, but let's see what the RMSE is between the fitted model and the observed data:
+```{r rmse}
+# To calculate the RMSE, we just need to take the square root of the value of 
+# our objective function for our best fit, since our objective function finds 
+# the MSE between predicted and observed data
+rmse <- sqrt(optim_output$value)
+rmse
+```
+
+Looking back at our graph, it seems that most of this error is coming from variability within the data itself rather than from an issue with our fit.
+
+We can also evaluate our fit by examining the residuals:
+```{r residuals}
+# Before plotting, we need to actually calculate the residuals
+pred_data$residuals <- data$y - pred_data$y
+
+# Now let's make our plot:
+ggplot() + 
+  geom_point(data = pred_data, aes(x = x, y = residuals)) +
+  ggtitle("Residual Plot")
+
+```
+
+There does not appear to be any trend in the residuals (which would indicate a likely issue with our fit).
+
+## Comparison with the Actual Model
+As noted above, optim found that the best fit for the observations is: $y = `r round(best_pars[1], 3)` + `r round(best_pars[2], 3)`x + `r round(best_pars[3], 3)`x^2$. 
+
+However, the actual model used to generate this data set is: $y = 3 + 2.5x + 0.5x^2$. Although my quadratic coefficient lines up closely with the actual coefficient, my linear coefficient is off by more than 0.2 and my constant term is off by more than 5. These errors don't seem super large given how much variability is in the observational record to begin with but they are still notable. I think a lot of these differences could be simply due to chance, with the random sampling of data points having a slightly lower average value than the actual model.
+
+Ultimately, given that there didn't seem to be any trend in the residuals and that, considering the variability within the observations themselves, my best fit quite close to the actual model, I am not very concerned about my parameter estimates.
