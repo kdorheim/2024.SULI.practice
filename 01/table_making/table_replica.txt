@@ -1,0 +1,29 @@
+***Key Metrics***
+ECS: 
+TCRE: 
+TCR: 
+
+***Historical Warming and ERF***
+GSAT Warming: 
+Ocean Heat Content Change: 
+Total Aerosol ERF: 
+WMGHG ERF: 
+Methane ERF: 
+
+***Future Warming***
+scenario	start	end	GSAT
+ssp119	2021	2040	0.73
+ssp119	2041	2060	0.89
+ssp119	2081	2100	0.72
+ssp126	2021	2040	0.74
+ssp126	2041	2060	1.08
+ssp126	2081	2100	1.1
+ssp245	2021	2040	0.75
+ssp245	2041	2060	1.29
+ssp245	2081	2100	1.98
+ssp370	2021	2040	0.76
+ssp370	2041	2060	1.43
+ssp370	2081	2100	2.94
+ssp585	2021	2040	0.88
+ssp585	2041	2060	1.74
+ssp585	2081	2100	3.79
