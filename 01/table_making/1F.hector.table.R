@@ -16,7 +16,7 @@ W_TO_ZJ <- 3.155693e-14              # Watts to ZJ
 
 # Storing variables for ERF calculations
 AEROSOL_RF_VARS <- c(RF_BC(), RF_OC(), RF_NH3(), RF_SO2(), RF_ACI())
-NONGHG_RF_VARS <- c(aerosol_RF_vars, RF_VOL(), RF_ALBEDO(), RF_MISC())
+NONGHG_RF_VARS <- c(AEROSOL_RF_VARS, RF_VOL(), RF_ALBEDO(), RF_MISC())
 
 
 #################
@@ -156,9 +156,9 @@ sum_vars <- function(data, vars, name, unit, yrs) {
 #
 # returns: nothing
 #
-# Note: The value of the metric is rounded to 2 when outputted
+# Note: The value of the metric is rounded to 3 sig figs when outputted
 write_metric <- function(name, val) {
-  write(paste(name, round(val, 2)), file = OUTPUT, append = TRUE)
+  write(paste(name, signif(val, 3)), file = OUTPUT, append = TRUE)
 }
 
 
@@ -217,7 +217,7 @@ total_flux <- avg_flux * length(1971:2018)
 ocean_heat_content_change <- total_flux * OCEAN_AREA * W_TO_ZJ
 
 
-### Finding total aerosol ERF
+### Finding total aerosol ERF ###
 
 # Getting total aerosol forcing for relevant years
 hist_data <- sum_vars(data = hist_data,
@@ -227,10 +227,27 @@ hist_data <- sum_vars(data = hist_data,
                       yrs  = 2005:2015)
 
 # Getting average forcing from 2005-2015
-tot_aer_ERF <- get_interval_avg(data  = hist_data,
+tot_aer_erf <- get_interval_avg(data  = hist_data,
                                 var   = "tot_aer_ERF",
                                 start = 2005,
                                 end   = 2015)
+
+### Finding WMGHG ERF ###
+
+# Getting total non-GHG ERF
+hist_data <- sum_vars(data = hist_data,
+                      vars = NONGHG_RF_VARS,
+                      name = "non_ghg_ERF",
+                      unit = "W/m^2",
+                      yrs  = 2019)
+
+# Subtracting non-GHG ERF from total RF
+wmghg_erf <- filter(hist_data, variable == RF_TOTAL() & year == 2019)$value -
+               filter(hist_data, variable == "non_ghg_ERF" & year == 2019)$value
+
+
+### Finding methane ERF ###
+methane_erf <- filter(hist_data, variable == RF_CH4() & year == 2019)$value
 
 
 #----------------#
@@ -281,7 +298,7 @@ for (scen_counter in 1:length(scenario_files)) {
         list(paste("ssp", scenarios[scen_counter], sep = ""),
              start_yrs[i],
              end_yrs[i],
-             round(temps, 2))
+             signif(temps, 3))
   }
 }
 
@@ -299,9 +316,9 @@ write("", file = OUTPUT, append = TRUE)
 write("***Historical Warming and ERF***", file = OUTPUT, append = TRUE)
 write_metric("GSAT Warming:             ", GSAT_warming)
 write_metric("Ocean Heat Content Change:", ocean_heat_content_change)
-write_metric("Total Aerosol ERF:        ", tot_aer_ERF)
-write("WMGHG ERF: ", file = OUTPUT, append = TRUE)
-write("Methane ERF: ", file = OUTPUT, append = TRUE)
+write_metric("Total Aerosol ERF:        ", tot_aer_erf)
+write_metric("WMGHG ERF:                ", wmghg_erf)
+write_metric("Methane ERF:              ", methane_erf)
 write("", file = OUTPUT, append = TRUE)
 
 write("***Future Warming***", file = OUTPUT, append = TRUE)
