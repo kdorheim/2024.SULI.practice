@@ -7,8 +7,14 @@
 library(hector)
 library(dplyr)
 
-# Storing output file path
-OUTPUT <- file.path(here::here(), "01", "table_making", "table_replica.txt")
+# Storing relevant file paths
+TABLE_DIR <- file.path(here::here(), "01", "table_making")
+
+IDEAL_RUNS <- file.path(TABLE_DIR, "idealized_inputs", "idealized_inputs")
+INPUT_ECS <- file.path(IDEAL_RUNS, "hector_abruptx2CO2.ini")
+INPUT_TCR <- file.path(IDEAL_RUNS, "hector_1pctCO2.ini")
+
+OUTPUT <- file.path(TABLE_DIR, "table_replica.txt")
 
 # Storing ocean heat content constants
 OCEAN_AREA <- 5100656e8 * (1 - 0.29) # The total area of the ocean
@@ -170,6 +176,64 @@ write_metric <- function(name, val) {
 # KEY METRICS #
 #-------------#
 
+### Finding ECS ###
+
+# Running the special ECS run
+ecs_data <- run_hector(ini_file = INPUT_ECS,
+                       yrs      = 1745:2300,
+                       vars     = GLOBAL_TAS())
+
+# Calculating ECS from global temperatures
+ecs <- get_var_change(data  = ecs_data,
+                      var   = GLOBAL_TAS(),
+                      start = 1745,
+                      end   = 2300)
+
+
+### Finding TCRE ###
+
+# Setting relevant variables
+tcre_file <- system.file("input/hector_ssp585.ini", package = "hector")
+tcre_vars <- c(GLOBAL_TAS(), FFI_EMISSIONS(), LUC_EMISSIONS())
+tcre_data <- run_hector(ini_file = tcre_file,
+                        yrs = 1750:2300,
+                        vars = tcre_vars)
+
+# Combining emissions data
+tcre_data <- sum_vars(data = tcre_data,
+                      vars = c(FFI_EMISSIONS(), LUC_EMISSIONS()),
+                      name = "tot_emissions",
+                      unit = "Gt C/yr",
+                      yrs  = 1750:2300)
+
+# Getting the change in temperature and cumulative carbon emissions
+temp_change <- get_var_change(data = tcre_data,
+                              var = GLOBAL_TAS(),
+                              start = 1750,
+                              end = 2300)
+
+total_emissions <- length(1750:2300) * get_interval_avg(data  = tcre_data,
+                                                        var   = "tot_emissions",
+                                                        start = 1750,
+                                                        end   = 2300)
+
+# Calculating TCRE
+tcre <- temp_change / (total_emissions / 1000)
+# TODO: Report on this data in txt file
+
+
+### Finding TCR ###
+tcr_data <- run_hector(ini_file = INPUT_TCR,
+                       yrs      = 1745:2070,
+                       vars     = c(GLOBAL_TAS(), CONCENTRATIONS_CO2()))
+
+tcr_co2   <- filter(tcr_data, variable == CONCENTRATIONS_CO2())$value
+tcr_temps <- filter(tcr_data, variable == GLOBAL_TAS())$value
+
+tcr_reg <- lm(tcr_temps ~ tcr_co2)
+
+# TODO: Use this data to calculate actual metric
+
 #----------------------------#
 # HISTORICAL WARMING AND ERF #
 #----------------------------#
@@ -308,7 +372,7 @@ for (scen_counter in 1:length(scenario_files)) {
 
 # Right now, I haven't written the code to find these metrics
 write("***Key Metrics***", file = OUTPUT)
-write("ECS: ", file = OUTPUT, append = TRUE)
+write_metric("ECS: ", ecs)
 write("TCRE: ", file = OUTPUT, append = TRUE)
 write("TCR: ", file = OUTPUT, append = TRUE)
 write("", file = OUTPUT, append = TRUE)
