@@ -6,7 +6,7 @@ TCR:
 ***Historical Warming and ERF***
 GSAT Warming:              0.73
 Ocean Heat Content Change: 471.01
-Total Aerosol ERF: 
+Total Aerosol ERF:         -1.24
 WMGHG ERF: 
 Methane ERF: 
 

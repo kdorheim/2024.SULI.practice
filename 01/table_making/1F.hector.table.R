@@ -14,6 +14,11 @@ OUTPUT <- file.path(here::here(), "01", "table_making", "table_replica.txt")
 OCEAN_AREA <- 5100656e8 * (1 - 0.29) # The total area of the ocean
 W_TO_ZJ <- 3.155693e-14              # Watts to ZJ
 
+# Storing variables for ERF calculations
+AEROSOL_RF_VARS <- c(RF_BC(), RF_OC(), RF_NH3(), RF_SO2(), RF_ACI())
+NONGHG_RF_VARS <- c(aerosol_RF_vars, RF_VOL(), RF_ALBEDO(), RF_MISC())
+
+
 #################
 ### FUNCTIONS ###
 #################
@@ -173,14 +178,10 @@ write_metric <- function(name, val) {
 
 # Setting up variables
 hist_yrs <- 1750:2019
-hist_vars <- c(GLOBAL_TAS(),       # For GSAT warming
-               HEAT_FLUX(),        # For ocean heat content change
-               RF_CH4(),           # For Methane ERF
-               RF_BC(), RF_OC(), RF_NH3(), RF_SO2(), RF_ACI(),
-                                   # For total aerosol ERF and WMGHG ERF
-               RF_VOL(), RF_ALBEDO(), RF_MISC(), RF_TOTAL()
-                                   # For WMGHG ERF
-                                   # (will subtract non-GHG RF from total)
+hist_vars <- c(GLOBAL_TAS(),               # For GSAT warming
+               HEAT_FLUX(),                # For ocean heat content change
+               RF_CH4(),                   # For Methane ERF
+               NONGHG_RF_VARS, RF_TOTAL()  # For other ERF calcs
                )
 hist_file <- system.file("input/hector_ssp245.ini", package = "hector")
 
@@ -214,6 +215,22 @@ total_flux <- avg_flux * length(1971:2018)
 
 # Converting flux to heat content change
 ocean_heat_content_change <- total_flux * OCEAN_AREA * W_TO_ZJ
+
+
+### Finding total aerosol ERF
+
+# Getting total aerosol forcing for relevant years
+hist_data <- sum_vars(data = hist_data,
+                      vars = AEROSOL_RF_VARS,
+                      name = "tot_aer_ERF",
+                      unit = "w/m^2",
+                      yrs  = 2005:2015)
+
+# Getting average forcing from 2005-2015
+tot_aer_ERF <- get_interval_avg(data  = hist_data,
+                                var   = "tot_aer_ERF",
+                                start = 2005,
+                                end   = 2015)
 
 
 #----------------#
@@ -282,7 +299,7 @@ write("", file = OUTPUT, append = TRUE)
 write("***Historical Warming and ERF***", file = OUTPUT, append = TRUE)
 write_metric("GSAT Warming:             ", GSAT_warming)
 write_metric("Ocean Heat Content Change:", ocean_heat_content_change)
-write("Total Aerosol ERF: ", file = OUTPUT, append = TRUE)
+write_metric("Total Aerosol ERF:        ", tot_aer_ERF)
 write("WMGHG ERF: ", file = OUTPUT, append = TRUE)
 write("Methane ERF: ", file = OUTPUT, append = TRUE)
 write("", file = OUTPUT, append = TRUE)
