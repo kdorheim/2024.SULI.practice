@@ -4,8 +4,8 @@ TCRE:
 TCR: 
 
 ***Historical Warming and ERF***
-GSAT Warming: 
-Ocean Heat Content Change: 
+GSAT Warming:              0.73
+Ocean Heat Content Change: 471.01
 Total Aerosol ERF: 
 WMGHG ERF: 
 Methane ERF: 

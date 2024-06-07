@@ -2,12 +2,17 @@
 # Author: Peter Scully
 # Date: 6/5/24
 
-# Import statements
+### Imports and Constants ###
+
 library(hector)
 library(dplyr)
 
 # Storing output file path
 OUTPUT <- file.path(here::here(), "01", "table_making", "table_replica.txt")
+
+# Storing ocean heat content constants
+OCEAN_AREA <- 5100656e8 * (1 - 0.29) # The total area of the ocean
+W_TO_ZJ <- 3.155693e-14              # Watts to ZJ
 
 #################
 ### FUNCTIONS ###
@@ -28,6 +33,24 @@ run_hector <- function(ini_file, yrs, vars) {
   data <- fetchvars(core, yrs, vars = vars)
   shutdown(core)
   return(data)
+}
+
+
+# get_var_change - function to find the change in a variable between a start
+#                  and end date
+#
+# args:
+#   data  - data frame outputted by fetchvars
+#   var   - string containing the Hector variable to find the change in
+#   start - start year
+#   end   - end year
+#
+# returns: single value indicating the change in variable from start year to
+#          end year
+get_var_change <- function(data, var, start, end) {
+  initial_val <- filter(data, variable == var & year == start)$value
+  final_val   <- filter(data, variable == var & year == end)$value
+  return(final_val - initial_val)
 }
 
 
@@ -52,6 +75,7 @@ get_interval_avg <- function(data, var, start, end) {
 
 # rel_to_val - function to adjust values of a Hector variable to be relative
 #              to a new value
+#
 # args:
 #   data      - data frame outputted by fetchvars
 #   var       - string containing the Hector variable to adjust
@@ -68,16 +92,68 @@ rel_to_val <- function(data, var, benchmark) {
 
 # rel_to_interval - function to normalize values of a Hector variable to a
 #                   reference period
+#
 # args:
 #   data  - data frame outputted by fetchvars
 #   var   - string containing the Hector variable to adjust
 #   start - start year for reference period
 #   end   - end year for reference period
 #
-# returns - data frame containing the normalized values for that variable
+# returns: data frame containing the normalized values for that variable
 rel_to_interval <- function(data, var, start, end) {
   benchmark <- get_interval_avg(data, var, start, end)
   return(rel_to_val(data, var, benchmark))
+}
+
+
+# sum_vars - function to sum the values of several Hector variables at each
+#            timestep. adds new rows to the provided data frame containing the
+#            summed values at each time step
+#
+# args:
+#   data - data frame outputted by fetchvars
+#   vars - vector of Hector variables to sum together
+#   name - name to call the new variable containing the sums of the values in
+#           vars
+#   unit - units to assign to the new variable
+#   yrs  - vector of years to sum these variables for
+#
+# returns: original data frame with additional rows containing the sums of the
+#          values for the inputted variables
+#
+# Note: Currently, all columns other than year, variable, and value will be set
+#       equal to the same values as the last row in the original data frame
+sum_vars <- function(data, vars, name, unit, yrs) {
+
+  # Setting up iterator to iterate through new rows of data frame
+  curr_row <- nrow(data) + 1
+  for (yr in yrs) {
+    # Adding new row to data frame
+    data[curr_row,] <- data[curr_row - 1,]
+    data[curr_row,]$year <- yr
+    data[curr_row,]$variable <- name
+    data[curr_row,]$units <- unit
+
+    # Summing the values across all variables
+    data[curr_row,]$value <-
+      sum(filter(data, year == yr & variable %in% vars)$value)
+    curr_row <- curr_row + 1
+  }
+  return(data)
+}
+
+
+# write_metric - writes the value for a metric to the output file
+#
+# args:
+#   name - name of metric
+#   val  - value of metric
+#
+# returns: nothing
+#
+# Note: The value of the metric is rounded to 2 when outputted
+write_metric <- function(name, val) {
+  write(paste(name, round(val, 2)), file = OUTPUT, append = TRUE)
 }
 
 
@@ -85,7 +161,64 @@ rel_to_interval <- function(data, var, start, end) {
 ### CALCULATING METRICS ###
 ###########################
 
-### FUTURE WARMING ###
+#-------------#
+# KEY METRICS #
+#-------------#
+
+#----------------------------#
+# HISTORICAL WARMING AND ERF #
+#----------------------------#
+
+### Initial Hector Run ###
+
+# Setting up variables
+hist_yrs <- 1750:2019
+hist_vars <- c(GLOBAL_TAS(),       # For GSAT warming
+               HEAT_FLUX(),        # For ocean heat content change
+               RF_CH4(),           # For Methane ERF
+               RF_BC(), RF_OC(), RF_NH3(), RF_SO2(), RF_ACI(),
+                                   # For total aerosol ERF and WMGHG ERF
+               RF_VOL(), RF_ALBEDO(), RF_MISC(), RF_TOTAL()
+                                   # For WMGHG ERF
+                                   # (will subtract non-GHG RF from total)
+               )
+hist_file <- system.file("input/hector_ssp245.ini", package = "hector")
+
+# Running Hector
+hist_data <- run_hector(ini_file = hist_file, yrs = hist_yrs, vars = hist_vars)
+
+
+### Finding GSAT Warming ###
+
+# Normalizing temperatures
+hist_data <- rel_to_interval(data  = hist_data,
+                             var   = GLOBAL_TAS(),
+                             start = 1850,
+                             end   = 1900)
+
+# Getting 1995-2014 avg
+GSAT_warming <- get_interval_avg(data  = hist_data,
+                                 var   = GLOBAL_TAS(),
+                                 start = 1995,
+                                 end   = 2014)
+
+
+### Finding ocean heat content change ###
+
+# Summing ocean heat (by taking average and multiplying by number of yrs)
+avg_flux <- get_interval_avg(data  = hist_data,
+                             var   = HEAT_FLUX(),
+                             start = 1971,
+                             end   = 2018)
+total_flux <- avg_flux * length(1971:2018)
+
+# Converting flux to heat content change
+ocean_heat_content_change <- total_flux * OCEAN_AREA * W_TO_ZJ
+
+
+#----------------#
+# FUTURE WARMING #
+#----------------#
 
 # Setting up variables
 future_yrs <- 1995:2100
@@ -147,8 +280,8 @@ write("TCR: ", file = OUTPUT, append = TRUE)
 write("", file = OUTPUT, append = TRUE)
 
 write("***Historical Warming and ERF***", file = OUTPUT, append = TRUE)
-write("GSAT Warming: ", file = OUTPUT, append = TRUE)
-write("Ocean Heat Content Change: ", file = OUTPUT, append = TRUE)
+write_metric("GSAT Warming:             ", GSAT_warming)
+write_metric("Ocean Heat Content Change:", ocean_heat_content_change)
 write("Total Aerosol ERF: ", file = OUTPUT, append = TRUE)
 write("WMGHG ERF: ", file = OUTPUT, append = TRUE)
 write("Methane ERF: ", file = OUTPUT, append = TRUE)
