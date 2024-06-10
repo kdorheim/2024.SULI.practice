@@ -219,20 +219,26 @@ total_emissions <- length(1750:2300) * get_interval_avg(data  = tcre_data,
 
 # Calculating TCRE
 tcre <- temp_change / (total_emissions / 1000)
-# TODO: Report on this data in txt file
 
 
 ### Finding TCR ###
+
+# Running Hector and extracting relevant data
 tcr_data <- run_hector(ini_file = INPUT_TCR,
-                       yrs      = 1745:2070,
+                       yrs      = 1800:2070,
                        vars     = c(GLOBAL_TAS(), CONCENTRATIONS_CO2()))
 
 tcr_co2   <- filter(tcr_data, variable == CONCENTRATIONS_CO2())$value
 tcr_temps <- filter(tcr_data, variable == GLOBAL_TAS())$value
 
+# Finding TCR from linear fit
 tcr_reg <- lm(tcr_temps ~ tcr_co2)
 
-# TODO: Use this data to calculate actual metric
+initial_co2 <-
+  filter(tcr_data, variable == CONCENTRATIONS_CO2() & year == 1800)$value
+
+tcr <- tcr_reg$coefficients[1] + tcr_reg$coefficients[2] * initial_co2 * 2
+
 
 #----------------------------#
 # HISTORICAL WARMING AND ERF #
@@ -373,8 +379,8 @@ for (scen_counter in 1:length(scenario_files)) {
 # Right now, I haven't written the code to find these metrics
 write("***Key Metrics***", file = OUTPUT)
 write_metric("ECS: ", ecs)
-write("TCRE: ", file = OUTPUT, append = TRUE)
-write("TCR: ", file = OUTPUT, append = TRUE)
+write_metric("TCRE:", tcre)
+write_metric("TCR: ", tcr)
 write("", file = OUTPUT, append = TRUE)
 
 write("***Historical Warming and ERF***", file = OUTPUT, append = TRUE)
