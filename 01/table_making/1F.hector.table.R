@@ -20,7 +20,10 @@ OUTPUT <- file.path(TABLE_DIR, "table_replica.txt")
 OCEAN_AREA <- 5100656e8 * (1 - 0.29) # The total area of the ocean
 W_TO_ZJ <- 3.155693e-14              # Watts to ZJ
 
-# Storing variables for ERF calculations
+# Storing variables for TCRE and ERF calculations
+EMISSIONS_VARS <- c(FFI_EMISSIONS(), LUC_EMISSIONS())
+UPTAKE_VARS <- c(LUC_UPTAKE(), DACCS_UPTAKE())
+
 AEROSOL_RF_VARS <- c(RF_BC(), RF_OC(), RF_NH3(), RF_SO2(), RF_ACI())
 NONGHG_RF_VARS <- c(AEROSOL_RF_VARS, RF_VOL(), RF_ALBEDO(), RF_MISC())
 
@@ -134,6 +137,8 @@ rel_to_interval <- function(data, var, start, end) {
 #
 # Note: Currently, all columns other than year, variable, and value will be set
 #       equal to the same values as the last row in the original data frame
+# Note: This function is currently inefficient and should ideally be reworked to
+#       take advantage of dplyr functions like group_by
 sum_vars <- function(data, vars, name, unit, yrs) {
 
   # Setting up iterator to iterate through new rows of data frame
@@ -176,49 +181,43 @@ write_metric <- function(name, val) {
 # KEY METRICS #
 #-------------#
 
-### Finding ECS ###
-
-# Running the special ECS run
-ecs_data <- run_hector(ini_file = INPUT_ECS,
-                       yrs      = 1745:2300,
-                       vars     = GLOBAL_TAS())
-
-# Calculating ECS from global temperatures
-ecs <- get_var_change(data  = ecs_data,
-                      var   = GLOBAL_TAS(),
-                      start = 1745,
-                      end   = 2300)
-
-
 ### Finding TCRE ###
 
 # Setting relevant variables
 tcre_file <- system.file("input/hector_ssp585.ini", package = "hector")
-tcre_vars <- c(GLOBAL_TAS(), FFI_EMISSIONS(), LUC_EMISSIONS())
+tcre_vars <- c(GLOBAL_TAS(),
+               FFI_EMISSIONS(), LUC_EMISSIONS(),
+               LUC_UPTAKE(), DACCS_UPTAKE())
+
 tcre_data <- run_hector(ini_file = tcre_file,
                         yrs = 1750:2300,
                         vars = tcre_vars)
 
 # Combining emissions data
-tcre_data <- sum_vars(data = tcre_data,
-                      vars = c(FFI_EMISSIONS(), LUC_EMISSIONS()),
-                      name = "tot_emissions",
-                      unit = "Gt C/yr",
-                      yrs  = 1750:2300)
+tcre_data %>%
+  subset(variable %in% EMISSIONS_VARS) %>%
+  group_by(year) %>%
+  summarize(all_emissions = sum(value)) %>%
+  .$all_emissions -> tcre_emissions
 
-# Getting the change in temperature and cumulative carbon emissions
-temp_change <- get_var_change(data = tcre_data,
-                              var = GLOBAL_TAS(),
-                              start = 1750,
-                              end = 2300)
+total_emissions <- cumsum(tcre_emissions)
 
-total_emissions <- length(1750:2300) * get_interval_avg(data  = tcre_data,
-                                                        var   = "tot_emissions",
-                                                        start = 1750,
-                                                        end   = 2300)
+tcre_data %>%
+  subset(variable %in% UPTAKE_VARS) %>%
+  group_by(year) %>%
+  summarize(all_uptake = sum(value)) %>%
+  .$all_uptake -> tcre_uptake
 
-# Calculating TCRE
-tcre <- temp_change / (total_emissions / 1000)
+total_uptake <- cumsum(tcre_uptake)
+
+net_emissions <- total_emissions - total_uptake
+
+# Getting temperature data
+tcre_temps <- filter(tcre_data, variable == GLOBAL_TAS())$value
+
+# Calculating TCRE via linear regression
+tcre_reg <- lm(tcre_temps ~ net_emissions)
+tcre <- tcre_reg$coefficients[2] * 1000
 
 
 ### Finding TCR ###
@@ -234,8 +233,11 @@ tcr_temps <- filter(tcr_data, variable == GLOBAL_TAS())$value
 # Finding TCR from linear fit
 tcr_reg <- lm(tcr_temps ~ tcr_co2)
 
-initial_co2 <-
-  filter(tcr_data, variable == CONCENTRATIONS_CO2() & year == 1800)$value
+# Getting initial CO2
+core <- newcore(INPUT_TCR)
+initial_co2 <- fetchvars(core, dates = NA, vars = PREINDUSTRIAL_CO2())$value
+shutdown(core)
+initial_co2
 
 tcr <- tcr_reg$coefficients[1] + tcr_reg$coefficients[2] * initial_co2 * 2
 
@@ -378,7 +380,6 @@ for (scen_counter in 1:length(scenario_files)) {
 
 # Right now, I haven't written the code to find these metrics
 write("***Key Metrics***", file = OUTPUT)
-write_metric("ECS: ", ecs)
 write_metric("TCRE:", tcre)
 write_metric("TCR: ", tcr)
 write("", file = OUTPUT, append = TRUE)

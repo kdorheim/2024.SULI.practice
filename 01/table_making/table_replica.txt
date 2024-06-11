@@ -1,6 +1,5 @@
 ***Key Metrics***
-ECS:  2.81
-TCRE: 1.44
+TCRE: 1.51
 TCR:  2.15
 
 ***Historical Warming and ERF***
