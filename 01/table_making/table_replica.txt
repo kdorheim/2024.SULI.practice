@@ -1,6 +1,6 @@
 ***Key Metrics***
 TCRE: 1.51
-TCR:  2.15
+TCR:  1.77
 
 ***Historical Warming and ERF***
 GSAT Warming:              0.73

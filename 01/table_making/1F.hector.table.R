@@ -224,7 +224,7 @@ tcre <- tcre_reg$coefficients[2] * 1000
 
 # Running Hector and extracting relevant data
 tcr_data <- run_hector(ini_file = INPUT_TCR,
-                       yrs      = 1800:2070,
+                       yrs      = 1800:2000,
                        vars     = c(GLOBAL_TAS(), CONCENTRATIONS_CO2()))
 
 tcr_co2   <- filter(tcr_data, variable == CONCENTRATIONS_CO2())$value
